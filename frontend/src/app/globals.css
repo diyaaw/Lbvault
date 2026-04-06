@@ -1,0 +1,142 @@
+@import "tailwindcss";
+
+
+:root {
+  --background: #F6F7F5;
+  --primary: #4F6F6F;
+  --primary-foreground: #FFFFFF;
+  --secondary: #8FB9A8;
+  --secondary-foreground: #1F2933;
+  --foreground: #1F2933;
+  --card: #FFFFFF;
+  --card-foreground: #1F2933;
+  --muted: #E5E7EB;
+  --muted-foreground: #6B7280;
+  --accent: #8FB9A8;
+  --accent-foreground: #FFFFFF;
+  --border: #E2E8F0;
+  --radius: 1rem;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Auth Layout Utilities */
+.auth-split-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: 100vh;
+}
+
+@media (min-width: 1024px) {
+  .auth-split-grid {
+    grid-template-columns: 1fr 1.2fr;
+  }
+}
+
+/* Floating Label Styles */
+.floating-label-group {
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+.floating-label-group input,
+.floating-label-group select {
+  width: 100%;
+  padding: 1.25rem 1rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+.floating-label-group label {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  color: var(--muted-foreground);
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  pointer-events: none;
+}
+
+.floating-label-group input:focus~label,
+.floating-label-group input:not(:placeholder-shown)~label,
+.floating-label-group select:focus~label,
+.floating-label-group select:not([value=""])~label {
+  top: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--primary);
+}
+
+.floating-label-group input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(79, 111, 111, 0.1);
+  outline: none;
+}
+
+/* Button & Card Styles */
+.btn-primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  padding: 1rem 2rem;
+  border-radius: var(--radius);
+  font-weight: 600;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(79, 111, 111, 0.2);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+  scale: 0.98;
+}
+
+.btn-primary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--primary);
+  padding: 1rem 2rem;
+  border-radius: var(--radius);
+  font-weight: 600;
+  border: 1px solid var(--primary);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  background: rgba(79, 111, 111, 0.05);
+  border-color: var(--secondary);
+  color: var(--secondary);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+}
