@@ -1,9 +1,24 @@
 const User = require('../models/User');
+const Report = require('../models/Report');
 
 exports.searchPatients = async (req, res) => {
     try {
         const query = req.query.query;
-        if (!query) return res.status(200).json([]);
+        
+        if (!query) {
+            // Default View: Show historical patients for this pathology lab
+            if (req.user && req.user.role === 'pathology') {
+                const interactedPatientIds = await Report.distinct('patientId', { uploadedBy: req.user.id });
+                if (interactedPatientIds.length > 0) {
+                    const historicalPatients = await User.find({ _id: { $in: interactedPatientIds } })
+                                                         .select('-password')
+                                                         .sort({ createdAt: -1 })
+                                                         .limit(50);
+                    return res.status(200).json(historicalPatients);
+                }
+            }
+            return res.status(200).json([]);
+        }
         
         const patients = await User.find({
             role: 'patient',

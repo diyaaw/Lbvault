@@ -1,75 +1,56 @@
 from flask import Flask, request, jsonify
-import cv2
-import numpy as np
-import pytesseract
-from pdf2image import convert_from_path
-import re
-import os
+import logging
+from services.ocr_service import process_file_in_memory
 
 app = Flask(__name__)
 
-def preprocess_image(img):
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
-    # Deskewing can be added here if needed
-    return thresh
+# Configure basic logging for the controller
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-def extract_biomarkers(text):
-    biomarkers = {}
-    
-    glucose_match = re.search(r'(?i)glucose\s*.*?(\d+[\.\,]?\d*)', text)
-    if glucose_match:
-        biomarkers['glucose'] = float(glucose_match.group(1).replace(',', '.'))
-        
-    hemoglobin_match = re.search(r'(?i)hemoglobin\s*.*?(\d+[\.\,]?\d*)', text)
-    if hemoglobin_match:
-        biomarkers['hemoglobin'] = float(hemoglobin_match.group(1).replace(',', '.'))
-        
-    cholesterol_match = re.search(r'(?i)cholesterol\s*.*?(\d+[\.\,]?\d*)', text)
-    if cholesterol_match:
-        biomarkers['cholesterol'] = float(cholesterol_match.group(1).replace(',', '.'))
-        
-    return biomarkers
+@app.route('/', methods=['GET'])
+def index():
+    return jsonify({
+        "status": "OCR Service is running",
+        "endpoints": ["POST /ocr/process"]
+    })
 
 @app.route('/ocr/process', methods=['POST'])
 def process_report():
-    data = request.json
-    file_path = data.get('fileUrl')
-    
-    if not file_path:
-        return jsonify({"error": "No file parameter"}), 400
-        
-    # Translate relative URL to absolute path 
-    # Assumes Node.js is serving from ../backend
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'backend'))
-    full_path = os.path.join(base_dir, file_path.lstrip('/'))
-    
-    if not os.path.exists(full_path):
-        return jsonify({"error": "File not found"}), 404
-        
-    extracted_text = ""
-    
     try:
-        if full_path.lower().endswith('.pdf'):
-            images = convert_from_path(full_path)
-            for img in images:
-                open_cv_image = np.array(img)
-                processed = preprocess_image(open_cv_image)
-                text = pytesseract.image_to_string(processed)
-                extracted_text += text + "\n"
-        else:
-            img = cv2.imread(full_path)
-            processed = preprocess_image(img)
-            extracted_text = pytesseract.image_to_string(processed)
+        # Check if the post request has the file part
+        if 'file' not in request.files:
+            logger.warning("No file part in the request")
+            return jsonify({"error": "No file parameter in multipart/form-data", "status": "error"}), 400
             
-        biomarkers = extract_biomarkers(extracted_text)
+        file = request.files['file']
         
+        # If the user does not select a file, the browser submits an empty file without a filename
+        if file.filename == '':
+            logger.warning("Empty filename submitted")
+            return jsonify({"error": "No selected file", "status": "error"}), 400
+
+        # Check for optional preprocessing flag (default to True)
+        enable_preprocessing = request.form.get('enable_preprocessing', 'true').lower() == 'true'
+
+        logger.info(f"Received file: {file.filename} (Preprocessing: {enable_preprocessing})")
+
+        # Process the file entirely in memory
+        extracted_text = process_file_in_memory(file, file.filename, enable_preprocessing)
+
+        if not extracted_text:
+            return jsonify({"error": "Empty OCR output or unsupported file.", "status": "error"}), 400
+
+        # Return standardized JSON response
         return jsonify({
-            "text": extracted_text.strip()[:1000] + "...", # Truncated for safety
-            "biomarkers": biomarkers
-        })
+            "text": extracted_text,
+            "length": len(extracted_text),
+            "status": "success"
+        }), 200
+
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"Internal Server Error: {str(e)}")
+        return jsonify({"error": str(e), "status": "error"}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

@@ -7,23 +7,8 @@ import AudioPlayer from '@/components/ui/AudioPlayer';
 import { reportService } from '@/services/reportService';
 import { Report } from '@/types';
 
-const NORMS: Record<string, { min: number; max: number; unit: string }> = {
-    Hemoglobin: { min: 13.5, max: 17.5, unit: 'g/dL' },
-    WBC: { min: 4000, max: 11000, unit: 'cells/mcL' },
-    RBC: { min: 4.5, max: 5.9, unit: 'M/uL' },
-    Platelets: { min: 150000, max: 450000, unit: '/uL' },
-    Hematocrit: { min: 40, max: 50, unit: '%' },
-    Glucose: { min: 70, max: 100, unit: 'mg/dL' },
-    Cholesterol: { min: 125, max: 200, unit: 'mg/dL' },
-    Sodium: { min: 136, max: 145, unit: 'mEq/L' },
-    Potassium: { min: 3.5, max: 5.2, unit: 'mEq/L' },
-    Creatinine: { min: 0.7, max: 1.4, unit: 'mg/dL' },
-    Urea: { min: 4, max: 40, unit: 'mg/dL' },
-};
-
-function getNorm(key: string) {
-    return NORMS[key] ?? NORMS[Object.keys(NORMS).find(k => k.toLowerCase() === key.toLowerCase()) ?? ''];
-}
+// We no longer use a static frontend NORMS mapping because the AI-extracted markers 
+// supply their precise clinical bounds entirely dynamically inside 'report.biomarkers'.
 
 export default function PatientReportViewerPage() {
     const { id } = useParams();
@@ -82,19 +67,30 @@ export default function PatientReportViewerPage() {
     const fullFileUrl = `${apiBase}${report.fileUrl}`;
     const pathologyName = typeof report.pathologyId === 'object' ? report.pathologyId?.name : 'Diagnostic Lab';
 
-    const biomarkerRows = Object.entries(report.extractedData ?? {}).map(([key, val]) => {
-        const norm = getNorm(key);
-        const numVal = typeof val === 'number' ? val : parseFloat(val as string);
+    const rawBiomarkers = report.biomarkers || [];
+
+    const biomarkerRows = rawBiomarkers.map((b: any) => {
+        const numVal = Number(b.value);
         let status = 'unknown';
-        if (norm && !isNaN(numVal)) {
-            status = numVal < norm.min ? 'low' : numVal > norm.max ? 'high' : 'normal';
+        if (!isNaN(numVal) && b.referenceMin !== undefined && b.referenceMax !== undefined) {
+            status = b.isAbnormal ? (numVal < b.referenceMin ? 'low' : 'high') : 'normal';
         }
-        return { key, val, numVal, norm, status };
+        return { 
+            key: b.biomarkerName, 
+            val: b.value, 
+            unit: b.unit, 
+            norm: { min: b.referenceMin, max: b.referenceMax, unit: b.unit },
+            status 
+        };
     });
 
-    const insights = Object.entries(report.extractedData ?? {}).map(([label, value]) => {
-        const norm = getNorm(label) ?? { min: 0, max: 9999, unit: '' };
-        return { label: label.toLowerCase(), value: value as number, unit: norm.unit, ranges: { min: norm.min, max: norm.max } };
+    const insights = rawBiomarkers.map((b: any) => {
+        return { 
+            label: b.biomarkerName.toLowerCase(), 
+            value: Number(b.value), 
+            unit: b.unit, 
+            ranges: { min: b.referenceMin, max: b.referenceMax } 
+        };
     });
 
     const TABS = [
@@ -117,7 +113,7 @@ export default function PatientReportViewerPage() {
                     </div>
                     <p className="text-[#6B7280] text-sm font-bold uppercase tracking-widest flex items-center gap-2 pl-10">
                         <span className="w-2 h-2 bg-[#8FB9A8] rounded-full" />
-                        {pathologyName} · {report.testType} · {new Date(report.uploadDate).toLocaleDateString()}
+                        {pathologyName} · {report.testType || report.category || 'Lab Report'} · {report.reportDate || report.createdAt ? new Date(report.reportDate || report.createdAt).toLocaleDateString() : 'N/A'}
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">

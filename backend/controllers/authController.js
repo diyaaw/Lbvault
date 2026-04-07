@@ -2,6 +2,9 @@ const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const generateLvId = require('../utils/generateLvId');
+const PatientProfile = require('../models/PatientProfile');
+const PathologyProfile = require('../models/PathologyProfile');
+const DoctorProfile = require('../models/DoctorProfile');
 
 exports.signup = async (req, res) => {
     try {
@@ -29,6 +32,22 @@ exports.signup = async (req, res) => {
         });
 
         await user.save();
+
+        // Establish the relational 1:1 profile
+        if (role === 'patient') {
+            await PatientProfile.create({ userId: user._id });
+        } else if (role === 'pathology') {
+            await PathologyProfile.create({ 
+                userId: user._id, 
+                labName: name, 
+                licenseNumber: `PENDING-${Date.now()}` 
+            });
+        } else if (role === 'doctor') {
+            await DoctorProfile.create({ 
+                userId: user._id, 
+                registrationNumber: `PENDING-${Date.now()}` 
+            });
+        }
 
         const token = jwt.sign({ id: user._id, role: user.role, lvId: user.lvId }, process.env.JWT_SECRET || 'fallback_secret', { expiresIn: '7d' });
 

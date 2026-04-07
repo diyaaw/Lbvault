@@ -6,9 +6,13 @@ LabVault (also referred to as HealthScan) is a comprehensive pathology managemen
 ## Features
 - **Role-Based Dashboards**: Secure, dedicated portals for Patients, Doctors, and Pathology Labs with specialized functionalities.
 - **Dual-Source Report Integration**: Patients and verified pathology labs can seamlessly upload reports with distinct trust levels based on the origin (`isVerified`).
-- **Advanced Document OCR & Analytics Engine**: 
-  - Rule-based & ML-driven OCR data extraction (using Tesseract LSTM & OpenCV filters) to pull key medical biomarkers (Glucose, Hemoglobin, Cholesterol, etc.) from PDF and image-based lab reports.
-  - Automatically structures the extracted data to generate a "One-Glance" Analytics UI Dashboard for monitoring out-of-range biomarkers.
+- **Hybrid OCR & AI Pipeline Architecture**: 
+  1. **Node.js Ingestion**: The Express server securely receives the patient report (PDF or Image). 
+  2. **Refactored Python OCR Service (Hybrid)**: Node.js proxies the file stream via `multipart/form-data` to the Python Flask microservice.
+     - **Performance Optimization**: Uses local **Poppler** (if available) to convert PDF pages into high-resolution image bytes, significantly reducing cloud API payload and bypassing strict request limits.
+     - **Cloud-Native Extraction**: Leverages **Google Gemini 1.5 Flash** for high-accuracy text extraction, removing the need for local Tesseract installations and ensuring medical-grade precision.
+  3. **AI Structuring (Groq)**: Node.js receives the raw text and delegates it to a Llama 3.1 LLM via Groq, strictly enforcing the extraction of structured JSON clinical biomarkers.
+  4. **Multilingual Access**: The final structured text is then processed into patient-friendly summaries and passed through `google-tts-api` to generate voice accessibility features.
 - **Multilingual Voice Summaries (Accessibility)**: Leverages `google-tts-api` to convert AI-generated medical report summaries into accessible audio. Supports English, Hindi, Marathi, and Telugu.
 - **Doctor-Patient Interlinking**: Built-in permission flows that allow patients to grant access to participating doctors. Doctors can continuously monitor longitudinal health data and provide clinical notes directly on the reports.
 
@@ -31,21 +35,20 @@ LabVault (also referred to as HealthScan) is a comprehensive pathology managemen
 ### OCR Microservice
 - **Runtime**: Python 3
 - **Framework**: Flask
-- **OCR Engine**: Pytesseract (Tesseract OCR), pdf2image
-- **Image Processing**: OpenCV (`opencv-python-headless`), NumPy, Pillow
+- **Primary Engine**: Google Gemini 1.5 Flash (via `google-generativeai`)
+- **PDF Conversion**: Poppler (via `pdf2image`)
+- **Fallbacks**: Local Pytesseract (Optional)
 
 ## Prerequisites
 Before running this application locally, ensure you have the following installed on your system:
 - **Node.js**: v18+ recommended
 - **Python**: v3.8+ recommended (with `pip`)
-- **Tesseract OCR**: Required for text extraction. 
-  - Mac: `brew install tesseract`
-  - Ubuntu/Debian: `sudo apt install tesseract-ocr`
-  - Windows: [Download Installer](https://github.com/UB-Mannheim/tesseract/wiki)
-- **Poppler**: Required by `pdf2image` to convert PDFs into image arrays.
+- **Poppler (Highly Recommended)**: Required by the OCR service to convert PDFs into image arrays locally for Gemini processing.
   - Mac: `brew install poppler`
   - Ubuntu/Debian: `sudo apt install poppler-utils`
-  - Windows: [Download Installer](https://github.com/oschwartz10612/poppler-windows/releases/)
+  - Windows: [Download Release](https://github.com/oschwartz10612/poppler-windows/releases/) (Extract and add the `Library\bin` folder to your PATH).
+- **Tesseract OCR (Optional)**: Can be used as a purely local fallback if Gemini is unavailable.
+  - Windows: [Download Installer](https://github.com/UB-Mannheim/tesseract/wiki)
 - **MongoDB**: A running MongoDB instance (Local or MongoDB Atlas)
 
 ---

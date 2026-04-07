@@ -2,19 +2,25 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-const uploadDir = 'uploads/';
+const uploadDir = 'uploads/reports/';
 
-// Ensure uploads directory exists
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-}
+// Ensure specific subdirectories exist
+const ensureDirs = () => {
+    ['uploads/reports', 'uploads/audio'].forEach(dir => {
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+    });
+};
+ensureDirs();
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
-        cb(null, `${Date.now()}-${file.originalname}`);
+        // Match the expected pathology report prefix
+        cb(null, `report-${Date.now()}-${file.originalname}`);
     }
 });
 

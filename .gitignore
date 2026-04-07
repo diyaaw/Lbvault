@@ -12,3 +12,7 @@ dist/
 build/
 coverage/
 *.log
+backend/test_*.js
+ocr_service/test_*.py
+test_*.js
+test_*.py
