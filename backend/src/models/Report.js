@@ -9,7 +9,8 @@ const reportSchema = new mongoose.Schema({
     reportName: { type: String, required: true },
     testType: { type: String }, // e.g., 'Complete Blood Count'
     category: { type: String, enum: ['blood', 'urine', 'imaging', 'biopsy', 'other'], default: 'other' },
-    fileUrl: { type: String, required: true },
+    fileUrl: { type: String, required: true },          // Cloudinary secure URL
+    cloudinaryPublicId: { type: String },               // Cloudinary public_id for deletion/management
     thumbnailUrl: { type: String },
     reportDate: { type: Date, default: Date.now },
     status: { type: String, enum: ['processing', 'ready', 'failed'], default: 'processing' },

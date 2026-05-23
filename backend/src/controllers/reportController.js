@@ -31,7 +31,10 @@ exports.uploadReport = async (req, res) => {
 
         if (!patient) return res.status(404).json({ message: 'Patient not found' });
 
-        const fileUrl = `/uploads/reports/${req.file.filename}`;
+        // req.file.path  → Cloudinary secure URL  (e.g. https://res.cloudinary.com/…)
+        // req.file.filename → Cloudinary public_id (e.g. reports/report-1716…)
+        const fileUrl = req.file.path;
+        const cloudinaryPublicId = req.file.filename;
 
         // 1. Create Core Report
         const report = new Report({
@@ -43,6 +46,7 @@ exports.uploadReport = async (req, res) => {
             reportName,
             testType,
             fileUrl,
+            cloudinaryPublicId,
         });
 
         await report.save();
@@ -59,14 +63,12 @@ exports.uploadReport = async (req, res) => {
         // 3. Run Full AI Pipeline in background (fire-and-forget)
         setImmediate(async () => {
             try {
-                const path = require('path');
-                const fs = require('fs');
-                const absoluteFilePath = path.join(__dirname, '..', report.fileUrl.replace(/^\//, ''));
-                console.log(`[BG PIPELINE] Pushing document to AI Engine: ${absoluteFilePath}`);
+                // report.fileUrl is now a Cloudinary HTTPS URL — pass directly to Gemini
+                console.log(`[BG PIPELINE] Pushing document to AI Engine: ${report.fileUrl}`);
 
                 let geminiResult;
-                if (fs.existsSync(absoluteFilePath)) {
-                    geminiResult = await aiService.extractBiomarkersFromDocument(absoluteFilePath);
+                if (report.fileUrl) {
+                    geminiResult = await aiService.extractBiomarkersFromDocument(report.fileUrl);
                 }
 
                 if (!geminiResult) throw new Error("Document analysis failed.");
