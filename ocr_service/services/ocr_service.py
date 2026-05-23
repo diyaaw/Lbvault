@@ -14,18 +14,28 @@ logger = logging.getLogger(__name__)
 # Configure Gemini if API key is available
 api_key = os.getenv("GOOGLE_AI_STUDIO_API_KEY", "").strip()
 gemini_model = None
+gemini_active = False
 
 if api_key:
     try:
         import google.generativeai as genai
         genai.configure(api_key=api_key)
         gemini_model = genai.GenerativeModel('gemini-1.5-flash')
-        logger.info("Gemini AI configured successfully.")
+        gemini_active = True
+        logger.info("=======================================================================")
+        logger.info("STARTUP CHECK: Gemini AI is ACTIVE and configured as the primary OCR.")
+        logger.info("=======================================================================")
     except Exception as e:
-        logger.warning(f"Gemini setup failed: {e}. Will use fallback OCR.")
+        logger.warning("=======================================================================")
+        logger.warning(f"STARTUP CHECK: Gemini setup failed: {e}. FALLBACK mode will be used.")
+        logger.warning("=======================================================================")
         api_key = None
+        gemini_active = False
 else:
-    logger.warning("GOOGLE_AI_STUDIO_API_KEY not set. Using local OCR fallbacks.")
+    logger.warning("=======================================================================")
+    logger.warning("STARTUP CHECK: GOOGLE_AI_STUDIO_API_KEY not set. FALLBACK mode will be used (pytesseract/pdfplumber).")
+    logger.warning("=======================================================================")
+    gemini_active = False
 
 
 def _extract_native_pdf_text(file_bytes):
@@ -140,9 +150,9 @@ def _extract_with_tesseract(images):
 def process_file_in_memory(file_stream, filename, enable_preprocessing=True):
     """
     Smart multi-strategy OCR:
-    1. pdfplumber (native text layer) — best for typed/digital PDFs like lab reports
-    2. Gemini Vision — best for scanned PDFs/images (if API key set)
-    3. Tesseract — local fallback for scanned documents
+    1. Gemini Vision (via google.generativeai) — Primary OCR method
+    2. pdfplumber (native text layer) — Fallback for digital PDFs if Gemini is unavailable
+    3. Tesseract — Local fallback for scanned documents/images if Gemini is unavailable
     """
     file_bytes = file_stream.read()
     if not file_bytes:
@@ -152,41 +162,66 @@ def process_file_in_memory(file_stream, filename, enable_preprocessing=True):
     is_pdf = filename.lower().endswith('.pdf')
     extracted_text = ""
 
-    # --- Strategy 1: Try native PDF text extraction first (fastest, most accurate for digital PDFs) ---
+    # 1. Try Gemini Vision as the primary OCR method if it is active
+    if gemini_active and gemini_model:
+        logger.info("[Primary Method - Gemini] Attempting Gemini Vision OCR...")
+        try:
+            images = []
+            if is_pdf:
+                try:
+                    from pdf2image import convert_from_bytes
+                    poppler_path = "/opt/homebrew/bin" if os.path.exists("/opt/homebrew/bin/pdftocairo") else None
+                    images = convert_from_bytes(file_bytes, poppler_path=poppler_path)
+                    logger.info(f"[Primary Method - Gemini] Converted PDF to {len(images)} images.")
+                except Exception as pdf_err:
+                    logger.warning(f"[Primary Method - Gemini] pdf2image conversion failed: {pdf_err}")
+            else:
+                images = [Image.open(io.BytesIO(file_bytes))]
+                logger.info("[Primary Method - Gemini] Loaded image successfully.")
+
+            if images:
+                extracted_text = _extract_with_gemini(images)
+                if extracted_text.strip():
+                    logger.info("[Primary Method - Gemini] OCR completed successfully.")
+                    return extracted_text.strip()
+                else:
+                    logger.warning("[Primary Method - Gemini] OCR returned empty text. Falling back to local methods...")
+            else:
+                logger.warning("[Primary Method - Gemini] No images available. Falling back to local methods...")
+        except Exception as e:
+            logger.error(f"[Primary Method - Gemini] Failed with error: {e}. Falling back to local methods...")
+
+    # 2. Fallbacks if Gemini is not active, fails, or returns empty text
+    logger.info("[Fallback Path] Running fallback OCR methods...")
+    
+    # Fallback Strategy A: Try native PDF text extraction first (most accurate for digital/typed PDFs)
     if is_pdf:
         extracted_text = _extract_native_pdf_text(file_bytes)
-        if len(extracted_text) > 500:  # Only use if we got substantial text, preventing small digital headers from hijacking scanned image pages
-            logger.info(f"Strategy 1 succeeded with {len(extracted_text)} chars. Skipping image OCR.")
+        if len(extracted_text) > 500:
+            logger.info(f"[Fallback Strategy A - pdfplumber] Succeeded with {len(extracted_text)} chars.")
             return extracted_text
 
-    # --- Strategy 2 & 3: Convert to images, then try Gemini or Tesseract ---
+    # Fallback Strategy B: Try local Tesseract OCR on images
     try:
         images = []
         if is_pdf:
             try:
                 from pdf2image import convert_from_bytes
-                # Explicitly add poppler path for Mac Homebrew environments
                 poppler_path = "/opt/homebrew/bin" if os.path.exists("/opt/homebrew/bin/pdftocairo") else None
                 images = convert_from_bytes(file_bytes, poppler_path=poppler_path)
-                logger.info(f"Converted PDF to {len(images)} images for visual OCR.")
             except Exception as pdf_err:
-                logger.warning(f"pdf2image failed: {pdf_err}. Trying Tesseract directly on bytes.")
+                logger.warning(f"[Fallback Strategy B - Tesseract] pdf2image failed: {pdf_err}")
         else:
             images = [Image.open(io.BytesIO(file_bytes))]
-            logger.info("Single image file loaded for OCR.")
 
         if images:
-            # Prefer Gemini if configured, else Tesseract
-            extracted_text = _extract_with_gemini(images) if api_key else ""
-            if not extracted_text.strip():
-                extracted_text = _extract_with_tesseract(images)
-
+            extracted_text = _extract_with_tesseract(images)
     except Exception as e:
-        logger.error(f"Image conversion/OCR failed: {e}")
+        logger.error(f"[Fallback Strategy B - Tesseract] Image conversion/OCR failed: {e}")
 
     if not extracted_text.strip():
-        logger.warning("All OCR strategies returned empty text. File may be corrupt or unsupported.")
+        logger.warning("All OCR strategies (primary Gemini and fallbacks) returned empty text.")
         return ""
 
-    logger.info(f"Final extracted text: {len(extracted_text)} characters.")
+    logger.info(f"Final extracted text via fallback: {len(extracted_text)} characters.")
     return extracted_text.strip()

@@ -61,13 +61,15 @@ exports.signup = async (req, res) => {
                 licenseNumber: registrationNumber || `PENDING-${Date.now()}`
             });
         } else if (role === 'doctor') {
-            const licenseCertificateUrl = req.file ? `/uploads/certificates/${req.file.filename}` : '';
+            const licenseCertificateUrl = req.file
+                ? `/uploads/certificates/${req.file.filename}`
+                : '';
             await DoctorProfile.create({
                 userId: user._id,
                 specialty: specialization,
                 registrationNumber: medicalLicenseNumber || `PENDING-${Date.now()}`,
                 hospitalName: hospitalName,
-                licenseCertificateUrl: licenseCertificateUrl
+                licenseCertificateUrl,
             });
         }
 
@@ -96,7 +98,7 @@ exports.signup = async (req, res) => {
             });
         }
     } catch (error) {
-        console.error('Signup Error:', error);
+        console.error('Signup Error:', error.name, error.message);
         res.status(500).json({ message: 'Server Error' });
     }
 };

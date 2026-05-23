@@ -11,7 +11,8 @@ const doctorProfileSchema = new mongoose.Schema({
     clinicAddress: { type: String },
     contactEmail: { type: String },
     isVerified: { type: Boolean, default: false },
-    isErDoctor: { type: Boolean, default: false }
+    isErDoctor: { type: Boolean, default: false },
+    licenseCertificateUrl: { type: String, default: '' }
 }, { timestamps: true });
 
 module.exports = mongoose.model('DoctorProfile', doctorProfileSchema);
