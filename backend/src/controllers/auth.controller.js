@@ -22,7 +22,7 @@ const { setAuthCookies, clearAuthCookies } = require('../utils/tokenCookies');
  * and returns both strings.
  */
 const generateAndSaveTokens = async (user) => {
-    const accessToken  = user.generateAccessToken();
+    const accessToken = user.generateAccessToken();
     const refreshToken = user.generateRefreshToken();
 
     // Save refresh token to DB — enables server-side revocation on logout
@@ -88,13 +88,13 @@ const login = async (req, res) => {
 
         // Return safe user object (no password, no refreshToken)
         const safeUser = {
-            _id:      user._id,
-            id:       user._id,
-            name:     user.name,
-            email:    user.email,
-            role:     user.role,
-            lvId:     user.lvId,
-            status:   user.status,
+            _id: user._id,
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            lvId: user.lvId,
+            status: user.status,
             avatarUrl: user.avatarUrl,
         };
 
